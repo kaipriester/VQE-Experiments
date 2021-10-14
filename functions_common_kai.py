@@ -3,6 +3,7 @@
 """
 Created on Sun Apr  4 21:03:13 2021
 Ref. https://github.com/TianyiPeng/Cluster-Simulation-Scheme/tree/master/VQE%20experiments
+
 """
 # import qiskit and other useful python modules
 
@@ -23,6 +24,38 @@ from qiskit.providers.aer import noise
 import pickle
 import copy
 
+from skquant.opt import minimize
+
+#NEW -------------------------------------------------------------
+import pennylane as qml
+def define_ansatz(n,param, list_1):
+    qca, p=A_ij()
+    
+    ### quantum circuit for ansatz
+    qr = qk.QuantumRegister(n, 'q')
+    cr = qk.ClassicalRegister(n, 'c')
+    qc = qk.QuantumCircuit(qr,cr)
+    ### initialize the ansatz state
+    for  ix in list_1:
+        qc.x(qr[ix])
+    param=np.array(param)+np.pi/2
+    sub_ck=[qca.bind_parameters({p: p_val}) for p_val in param]
+    sub_ck0=qca.bind_parameters({p: np.pi/2})
+    qc.append(sub_ck[0].to_gate(),[qr[0],qr[1]])
+    qc.append(sub_ck[1].to_gate(),[qr[2],qr[3]])
+    qc.append(sub_ck0.to_gate(),[qr[1],qr[2]])
+    qc.append(sub_ck[2].to_gate(),[qr[0],qr[1]])
+    qc.append(sub_ck[3].to_gate(),[qr[2],qr[3]])
+    qc.append(sub_ck0.to_gate(),[qr[1],qr[2]])
+    qc.append(sub_ck[4].to_gate(),[qr[0],qr[1]])
+    qc.append(sub_ck[5].to_gate(),[qr[2],qr[3]])
+    return qc,qr, cr
+
+def ansatz(param, n):
+    list_1= [1,2]  # exited state is 1001 in Lu, Ru, Ld, Rd
+    qc,qr,cr=define_ansatz(n,param, list_1)
+    return qc,qr, cr
+#-------------------------------------------------------------------
 ### print all backends: print(provider.backends())
 
 # obtain sampling distribution from the original, unreduced version of the quantum circuit for VQE
@@ -230,44 +263,163 @@ def get_overlap(n, default_thetas,  simulated_noise=False,overlap_ck=[]):
     overlap=np.maximum(overlap,0)  # postprocess to remove noise and error
     return overlap
 
+#NEW-----------------------------------------------------------------------------------------------------------------------
+from sklearn.model_selection import GridSearchCV
+from noisyopt import minimizeSPSA
+
+def GD(n, starting_point, total_test, Nparam, measure_list, pauli_list, define_VQE_ansatz, simulated_noise=False):
+    param_grid = {'stepsize': [0.001, 0.01, 0.1, 0.5, 1., 1.5, 2., 2.5, 3., 3.5]}
+    model = GridSearchCV(qml.GradientDescentOptimizer(), param_grid, cv=5)
+    model.fit(X_train, y_train)
+
+    best_params = model.best_params_
+    print(best_params)
+
+    #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
+
+    init_params = qml.init.strong_ent_layers_normal(
+    n_wires=num_wires, n_layers=num_layers
+    )
+    params = init_params.copy()
+
+    opt = qml.GradientDescentOptimizer(stepsize=best_params)
+    # Parameters
+    #     func (callable) – a quantum function
+    #     device (Device) – a PennyLane-compatible device
+    cost = qml.QNode(func, device)
+
+    def cost_gd(params):
+        return cost(params)
+
+    for k in range(total_test):
+        params, val = opt.step_and_cost(cost_gd, params)
+
+    return val
+
+def SPSA(n, starting_point, total_test, Nparam, measure_list, pauli_list, define_VQE_ansatz, simulated_noise=False):
+
+    param_grid = {'c': [0.001, 0.01, 0.1, 0.5, 1., 1.5, 2., 2.5, 3., 3.5],
+                'a': [0.001, 0.01, 0.1, 0.5, 1., 1.5, 2., 2.5, 3., 3.5]}
+    model = GridSearchCV(minimizeSPSA(), param_grid, cv=5)
+    model.fit(X_train, y_train)
+
+    best_params = model.best_params_
+    print(best_params)
+
+    #USE noisyopt's minimizeSPSA PACKAGE TO CALCULATE ENERGIES
+    flat_shape = num_layers * num_wires * 3
+    init_params = qml.init.strong_ent_layers_normal(
+        n_wires=num_wires, n_layers=num_layers
+    )
+    init_params_spsa = init_params.reshape(flat_shape)
+
+    qnode_spsa = qml.QNode(func, device)
+
+    def cost_spsa(params):
+        return qnode_spsa(params.reshape(num_layers, num_wires, 3))
+
+    cost_store_spsa = [cost_spsa(init_params_spsa)]
+    device_execs_spsa = [0]
+
+    def callback_fn(xk):
+        cost_val = cost_spsa(xk)
+        cost_store_spsa.append(cost_val)
+
+
+    res = minimizeSPSA(
+        cost_spsa,
+        x0=init_params_spsa.copy(),
+        niter=Nparam,
+        paired=False,
+        c=0.15,
+        a=0.2,
+        callback=callback_fn,
+    )
+
+    return res    
+
+def pauli_to_hamil(pauli_list):
+    coeffs=[]
+    obs=[]
+    
+    for i in pauli_list:
+        for j in i:
+            #print("coeffs: ", j[1])
+            #CHECKINNG FOR IIII
+            if (j[1] != float(1.0)):
+                coeffs.append(j[1])
+            #print("obs: ", j[0])
+            index=0
+            operatior=""
+            for k in j[0]: 
+                if (k != 'I'):
+                    if (k == 'X'):
+                        operatior = operatior + "qml.PauliX("+str(index)+")@"
+                    elif (k == 'Y'):
+                        operatior = operatior + "qml.PauliY("+str(index)+")@"
+                    elif(k == 'Z'):
+                        operatior = operatior + "qml.PauliZ("+str(index)+")@" 
+                index=index+1 
+            operatior = operatior[:-1]  
+            #CHECKINNG FOR IIII
+            if(operatior != ""):   
+                obs.append(operatior)
+    print(type(coeffs[0]), len(coeffs), coeffs)
+    #translation = {39: None}
+    #obs = str((obs).translate(translation))
+    print(type(obs[0]), len(obs), obs)    
+    #pennylane.ops.qubit.non_parametric_ops.PauliZ
+    obs = [qml.PauliZ(0),
+         qml.PauliZ(1),
+          qml.PauliZ(2),
+           qml.PauliZ(3),
+            qml.PauliZ(0)@qml.PauliZ(2),
+             qml.PauliZ(1)@qml.PauliZ(3),
+              qml.PauliX(0)@qml.PauliX(1),
+               qml.PauliX(2)@qml.PauliX(3),
+                qml.PauliY(0)@qml.PauliY(1),
+                 qml.PauliY(2)@qml.PauliY(3),
+                  qml.PauliZ(0),
+                   qml.PauliY(0)@qml.PauliY(1),
+                    qml.PauliX(0)@qml.PauliX(1),
+                     qml.PauliZ(1),
+                      qml.PauliZ(2),
+                       qml.PauliY(2)@qml.PauliY(3),
+                        qml.PauliX(2)@qml.PauliX(3),
+                         qml.PauliZ(3),
+                          qml.PauliZ(0)@qml.PauliZ(2),
+                           qml.PauliZ(1)@qml.PauliZ(3)]         
+
+    print(type(obs[0]))
+    H = qml.Hamiltonian(coeffs, obs) 
+
+    return H
+
+
+#NEW------------------------------------------------------------------------------------------------------------------------------
+
 def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_noise=False, 
                       file_name = "params.txt", 
                       param=[0.,0.],pauli_list=[],measure_list=[],define_overlap=None):
-    '''
-    n: number of qubits
-    depth: depth of the circuit
-    starting_point: for debuging, by default, 0
-    total_test: the number of iterations
-    get_VQE_result: a function reference for choosing the appropriate algorithms
-    simulated_noise: adding noise to the simulator
-    file_name: the running data is stored in the file
-    device: the simulator or the real quantum chip
-    '''
     
     weight=cal_weight(n,pauli_list)
     exact_E, Hfull=E_from_numpy(n,pauli_list)
-    
-    # the following global definitions are in place because
-    # we still want to access the last running result
-    # in case any error occurs during optimizatrion
     F=[]
     Params=[]
-
     depth = 1
-    
     L = len(param) # the total number of parameters
     beta = np.reshape(param,(-1,1)) #initilize the parameters
-    
-    # if (starting_point > 0): #for debugging, start for a specified parameters path
-    #     total = 0
-    #     for i in range(n):
-    #         for j in range(depth*3+2):
-    #             beta[total] = Params[starting_point][total]
-    #             total = total + 1
+    F_plus = 0.
+    F_minus = 0.
+
+    def objective_function(x):
+        E=-0.10312
+        return E 
+
 
     hp_a=[0.06,0.3]   # SPSA hyperparameter,  hp_a=[0.06,0.3] for Q4 and DQD
     for T in range(starting_point, total_test):
-        
+
         #the constants for SPSA
         a_n = hp_a[0] / np.power(T+1, hp_a[1])   
         c_n = 0.03 / np.power(T+1, 0.3)  # differential step size
@@ -277,7 +429,6 @@ def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_
         delta = np.random.binomial(1, 0.5, L)*2-1
                 
         #evaluate the plus direction
-        #for F_plus
         for i in range(L):
             param[i]=(beta[i]+delta[i]*c_n).tolist()[0]
         list_dict=[]
@@ -289,11 +440,8 @@ def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_
             ol=get_overlap(n, param, simulated_noise,define_overlap)
             F_plus=wol*ol+evaluate(list_dict,weight)
         
-        #for F_real_plus
-        #value_plus = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
 
         #evaluate the minus direction
-        #for F_minus
         for i in range(L):
             param[i]=(beta[i]-delta[i]*c_n).tolist()[0]
         list_dict=[]
@@ -301,22 +449,20 @@ def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_
             list_dict.append(get_VQE_result(n, param,  simulated_noise,mm,define_VQE_ansatz))
         if define_overlap is None:
             F_minus = evaluate(list_dict,weight)
+        # ignore for now
         else:   # VQD
             ol=get_overlap(n, param, simulated_noise,define_overlap)
-            F_minus=wol*ol+evaluate(list_dict,weight)
-        
-        #for F_real_minus
-        #value_minus = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
+            F_minus=wol*ol+evaluate(list_dict,weight)   
         
         ### calculate F value
+        #beta[i] -= a_n * (F_plus - F_minus) / (2*c_n*delta[i]) btw
         param=beta.ravel()
+        print("param!! ", param)
         list_dict=[]
         for _,mm in enumerate(measure_list):
             list_dict.append(get_VQE_result(n, param, simulated_noise,mm,define_VQE_ansatz))
         E_middle = evaluate(list_dict,weight)
-        
         E_middle_exact = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
- 
         #store the parameters in the current step
         Params.append(copy.deepcopy(beta.ravel()))   
         F.append([E_middle,E_middle_exact])
@@ -325,11 +471,22 @@ def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_
 
         print('At step {0}, the F_minus is {1:.5f}, the F_plus is {2:.5f}, and the gradient scale \
               is {3:.5f}\n'.format(T, F_minus, F_plus, a_n*(F_plus-F_minus)/c_n))
-        # print('At step {0}, the F_real_minus is {1:.5f}, the F_real_plus is {2:.5f}, and the \
-        # real gradient scale is {3:.5f}\n'.format(T, value_minus, value_plus, a_n*(value_plus-value_minus)/c_n))
+
         #update the parameters
         for i in range(L):
             beta[i] -= a_n * (F_plus - F_minus) / (2*c_n*delta[i])
+
+        #USING SCIKIT-QUANT-------------------------------------------------------------------------------------------------
+        # energy = np.array([F_plus, F_minus])
+        # result, history = \
+        #     minimize(objective_function, energy, bounds = np.array([[-np.pi, np.pi], [-np.pi, np.pi]], dtype=float) , budget=1, method='snobfit')  
+
+        # print(result.optpar)     
+        # print(result.optval)  
+        
+        # param[i] = result.optpar[0]  
+         
+        #-------------------------------------------------------------------------------------------------------------------
     
     ### get the optimum parameter
     F=np.array(F)
@@ -345,7 +502,7 @@ def SPSA_vqd_or_vqe(n, starting_point, total_test, define_VQE_ansatz, simulated_
     opt_E[0] = evaluate(list_dict,weight)
     if define_overlap is not None:  # print the overlap for checking VQD solution
         print('overlap is', ol)
-    return np.array(F), np.array(Params),opt_param, opt_E, exact_E
+    return np.array(F), np.array(Params),opt_param, opt_E, exact_E, param
 
 ## wrapper for running simulation
 def run_SPSA(n,Nparam,measure_list,pauli_list,define_VQE_ansatz, define_overlap=None):
@@ -354,24 +511,132 @@ def run_SPSA(n,Nparam,measure_list,pauli_list,define_VQE_ansatz, define_overlap=
     Params = []
     F = []
     #NUMBER OF STEPS
-    Niter=10      # total iteration number
-    F, Params,opt_param, opt_E, exact_E = SPSA_vqd_or_vqe(n, 0, Niter, define_VQE_ansatz, simulated_noise=True, 
+    Niter=5      # total iteration number
+    F, Params,opt_param, opt_E, exact_E, param = SPSA_vqd_or_vqe(n, 0, Niter, define_VQE_ansatz, simulated_noise=True, 
             file_name='SPSA_result_orig.txt', 
             pauli_list=pauli_list,measure_list=measure_list,param=np.zeros(Nparam),
             define_overlap=define_overlap)
-    
+
+    #F = GD(n, 0, Niter, Nparam, measure_list, pauli_list, define_VQE_ansatz, simulated_noise=True)        
+
+    #checking results
+    print("F: ", type(F), F) 
+    print("Params: ", type(Params), Params)
+    print("opt_params: ", type(opt_param), opt_param)
+    print("opt_E: ", type(opt_E), opt_E)
+    print("exact_E: ", type(exact_E), exact_E)
+    print("param: ", type(param), param)
+
     ### plot results
     #exact_E=-0.1026  # need to edit for every case
     #should converge to exact_E
-    def plot_result(F):
+    def plot_result(F, exact_E):
         Nitr=len(F)
         plt.figure()
+        E = np.full((Nitr),exact_E[3])
+        F = np.array(F)[:,0]
         xv=np.arange(Nitr)+1
-        plt.plot(xv,np.array(F)[:,0])
-        #plt.plot(xv,exact_E*np.ones(Nitr),'g--')
+        #plt.plot(xv, F) #plot just the first column of F
+        plt.plot(xv, E,'g--')
         plt.xlabel('iteration number')
         plt.ylabel('energy')
         plt.show()
-    plot_result(F)
+    plot_result(F,exact_E)
+
     return F,Params, opt_param, opt_E, exact_E
+
+
+### old SPSA optimizer (not used, just for reference)
+# # the simultaneous perturbation stochastic approximation (SPSA) method
+# # described in https://en.wikipedia.org/wiki/Simultaneous_perturbation_stochastic_approximation 
+# def SPSA_optimization(n, starting_point, total_test, define_VQE_ansatz, simulated_noise=False, 
+#                       file_name = "params.txt", device=qk.Aer.get_backend('qasm_simulator'),
+#                       param=[0.,0.],pauli_list=[],measure_list=[]):
+#     '''
+#     n: number of qubits
+#     depth: depth of the circuit
+#     starting_point: for debuging, by default, 0
+#     total_test: the number of iterations
+#     get_VQE_result: a function reference for choosing the appropriate algorithms
+#     simulated_noise: adding noise to the simulator
+#     file_name: the running data is stored in the file
+#     device: the simulator or the real quantum chip
+#     '''
+    
+#     weight=cal_weight(n,pauli_list)
+#     Hfull, Htrun, Efull, Etrun=E_from_numpy(n,pauli_list)
+    
+#     # the following global definitions are in place because
+#     # we still want to access the last running result
+#     # in case any error occurs during optimizatrion
+#     F=[]
+#     Params=[]
+
+#     depth = 1
+    
+#     L = 2 # the total number of parameters
+#     beta = np.reshape(param,(-1,1)) #initilize the parameters
+    
+#     if (starting_point > 0): #for debugging, start for a specified parameters path
+#         total = 0
+#         for i in range(n):
+#             for j in range(depth*3+2):
+#                 beta[total] = Params[starting_point][total]
+#                 total = total + 1
+
+    
+#     for T in range(starting_point, total_test):
+        
+#         #the constants for SPSA
+#         an = 0.2 / np.power(T+1, 0.3)
+#         cn = 0.06 / np.power(T+1, 0.5)
+        
+#         #random the gradient estimation direction
+#         delta = np.random.binomial(1, 0.5, L)*2-1
+                
+#         #evaluate the plus direction
+#         for i in range(L):
+#             param[i]=(beta[i]+delta[i]*cn).tolist()[0]
+#         ddict=[]
+#         for _,mm in enumerate(measure_list):
+#             ddict.append(get_VQE_result(n, param, device, simulated_noise,mm,define_VQE_ansatz))
+#         F_plus = evaluate(ddict,weight)
+        
+#         value_plus = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
+
+#         #evaluate the minus direction
+#         for i in range(L):
+#             param[i]=(beta[i]-delta[i]*cn).tolist()[0]
+#         ddict=[]
+#         for _,mm in enumerate(measure_list):
+#             ddict.append(get_VQE_result(n, param, device, simulated_noise,mm,define_VQE_ansatz))
+#         F_minus = evaluate(ddict,weight)
+
+#         value_minus = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
+        
+#         ### calculate F value
+#         param=beta.ravel()
+#         ddict=[]
+#         for _,mm in enumerate(measure_list):
+#             ddict.append(get_VQE_result(n, param, device, simulated_noise,mm,define_VQE_ansatz))
+#         F_middle = evaluate(ddict,weight)
+#         value_middle = float(evaluate_with_Hamiltonian(n, param, Hfull,define_VQE_ansatz))
+
+#         #update the parameters
+#         for i in range(L):
+#             beta[i] -= an * (F_plus - F_minus) / (2*cn*delta[i])
+            
+#         #store the parameters in the current step
+#         Params.append(copy.deepcopy(beta))   
+#         F.append([F_middle,value_middle,F_minus, value_minus, F_plus, value_plus])
+#         fw = open(file_name, 'wb')
+#         pickle.dump([Params, F], fw)
+
+        
+#         print('At step {0}, the F_minus is {1:.5f}, the F_plus is {2:.5f}, and the gradient scale \
+#               is {3:.5f}\n'.format(T, F_minus, F_plus, an*(F_plus-F_minus)/cn))
+#         print('At step {0}, the F_real_minus is {1:.5f}, the F_real_plus is {2:.5f}, and the \
+#      real gradient scale is {3:.5f}\n'.format(T, value_minus, value_plus, an*(value_plus-value_minus)/cn))
+#         opt_param=beta
+#     return F, Params,opt_param
 

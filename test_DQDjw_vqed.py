@@ -17,7 +17,7 @@ import qiskit as qk
 import time
 from utils import getH, write_pauli_string
 
-from functions_common import E_from_numpy, run_SPSA 
+from functions_common import E_from_numpy, run_SPSA
 
 np.random.seed()
 
@@ -83,6 +83,11 @@ def define_ansatz(n,param, list_1):
     return qc,qr, cr
 
 def define_VQE_ansatz(n,param):
+    list_1= [1,2]  # exited state is 1001 in Lu, Ru, Ld, Rd
+    qc,qr,cr=define_ansatz(n,param, list_1)
+    return qc,qr, cr
+
+def ansatz(param, n):
     list_1= [1,2]  # exited state is 1001 in Lu, Ru, Ld, Rd
     qc,qr,cr=define_ansatz(n,param, list_1)
     return qc,qr, cr
@@ -175,6 +180,7 @@ def sim_one(flag_vqe=1,Udet=1.8,tc=0.05):
     ham_name='DQD_jw.txt' #the name of the file
     pauli_list=get_pauli_list(ham_name,measure_list)
     
+    #CHANGING THIS-----------
     Nparam=6   # number of ansatz parameters
     ### print quantum circuits
     if flag_vqe==1:
@@ -188,6 +194,7 @@ def sim_one(flag_vqe=1,Udet=1.8,tc=0.05):
     ### run single simlulation, for VQD add define_overlap
     if flag_vqe==1:
         F,Params,opt_param, opt_E,exact_E=run_SPSA(Nq,Nparam,measure_list,pauli_list,define_VQE_ansatz) 
+        #run_opt(define_VQE_ansatz, Nparam, measure_list, pauli_list, define_overlap=None)
     else:  # VQD
         F,Params,opt_param, opt_E,exact_E=run_SPSA(Nq,Nparam,measure_list,pauli_list,define_VQD_ansatz,define_overlap)
     return F,Params,opt_param, opt_E,exact_E, Hmatrix, Hbasis
