@@ -113,12 +113,17 @@ def SPSA(steps=30, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, devic
     )
     init_params_spsa = init_params.reshape(flat_shape)
 
-    circuit_qk = get_qc(init_params_spsa.copy(), n_wires)
-    circuit_qml = qml.from_qiskit(circuit_qk)
+    # circuit_qk = get_qc(init_params_spsa.copy(), n_wires)
+    # circuit_qml = qml.from_qiskit(circuit_qk)
 
+    # def circuit(params):
+    #     circuit_qml(params, range(device.num_wires))
+    #     return exact_E
+
+    all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
     def circuit(params):
-        circuit_qml(params, range(device.num_wires))
-        return exact_E
+        qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
+        return qml.expval(all_pauliz_tensor_prod)
 
     qnode_spsa = qml.QNode(circuit, device)
 
@@ -147,6 +152,7 @@ def SPSA(steps=30, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, devic
         callback=callback_fn,
     )
 
+    print("energy values")
     print(res.x)
     #return res  
 
