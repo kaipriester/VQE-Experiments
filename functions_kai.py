@@ -49,7 +49,7 @@ def define_ansatz(param2, n, list_1= [1,2]):
     qc.append(sub_ck[5].to_gate(),[qr[2],qr[3]])
     return qc,qr, cr
 
-def get_qc(params1, n):
+def get_qk_qc(params1, n):
     list_1= [1,2]  # exited state is 1001 in Lu, Ru, Ld, Rd
     qc,qr,cr=define_ansatz(params1, n, list_1)
     return qc
@@ -57,11 +57,16 @@ def get_qc(params1, n):
 def GD(steps=200, n_wires=4, n_layers=6, stepsize=0.3, exact_E = -0.1026, device = qml.device("default.qubit", wires=4)):
     #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
 
-    qc = get_qc(np.zeros(n_layers), n_wires)
+    qc = get_qk_qc(np.zeros(n_layers), n_wires)
+    qc = qml.from_qiskit(qc)
     def circuit(x):
         qml.from_qiskit(qc)
-        #NEED TO WORK ON THIS LINE
-        #return qml.expval(qml.PauliZ(0))
+        for i in range(0,3):
+            qml.PauliZ(i)
+        #THIS LINE RETURN 1 EVERY ITER
+        return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1) @ qml.PauliZ(2) @ qml.PauliZ(3))
+        #THIS LINE IS THROWING ERROR
+        #return qml.expval(qml.PauliZ(0)), qml.expval(qml.PauliZ(1)), qml.expval(qml.PauliZ(2)), qml.expval(qml.PauliZ(3))
 
     # all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
     # def circuit(params):
