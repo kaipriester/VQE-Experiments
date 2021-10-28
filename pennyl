@@ -1,0 +1,64 @@
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+Created on Mon Oct 25 15:12:23 2021
+
+@author: yangning8109
+"""
+
+import pennylane as qml
+import numpy as np
+
+def my_ansatz(p,w0,w1):
+    qml.CNOT(wires=[w1,w0])
+    qml.RY(p,wires=w1)
+    qml.RZ(np.pi,wires=w1)
+    qml.CNOT(wires=[w0,w1])
+    qml.RZ(-np.pi,wires=w1)
+    qml.RY(-p,wires=w1)
+    qml.CNOT(wires=[w1,w0])
+    
+def my_circuit(params):
+    qml.PauliX(wires=1)
+    qml.PauliX(wires=2)
+    my_ansatz(params[0],0,1)
+    my_ansatz(params[1],2,3)
+    my_ansatz(np.pi/2,1,2)
+    my_ansatz(params[2],0,1)
+    my_ansatz(params[3],2,3)
+    my_ansatz(np.pi/2,1,2)
+    my_ansatz(params[4],0,1)
+    my_ansatz(params[5],2,3)
+    
+dev = qml.device("default.qubit", wires = 4, shots = 8000)
+@qml.qnode(dev)
+def make_circuit(n, param, measurenum=0):
+    '''
+    n: number of qubits:
+    measurestr: measurement basis 0=ZZZZ 1=XXXX 2=YYYY
+    '''
+    # measurement circuit
+    my_circuit(param)
+    
+    
+    measurestr=''
+    if measurenum==0: 
+        measurestr='ZZZZ'
+    elif measurenum==1: 
+        measurestr='XXXX'
+    elif measurenum==2: 
+        measurestr='YYYY'
+        
+    
+    for qb in range(n):
+        if (measurestr[qb] == 'X'):  # Hadamard transform between X and Z
+            qml.Hadamard(wires=qb)
+        if (measurestr[qb] == 'Y'):  # transform
+            qml.S(wires=qb)
+            qml.Hadamard(wires=qb)
+         
+    return qml.probs(wires=[0,1,2,3])  
+    
+    
+    
+    

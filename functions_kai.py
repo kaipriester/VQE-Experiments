@@ -53,63 +53,83 @@ def get_qk_qc(params1, n):
     list_1= [1,2]  # exited state is 1001 in Lu, Ru, Ld, Rd
     qc,qr,cr=define_ansatz(params1, n, list_1)
     return qc
-   
-def GD(steps=200, n_wires=4, n_layers=6, stepsize=0.3, exact_E = -0.1026, device = qml.device("default.qubit", wires=4)):
-    #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
 
-    qc = get_qk_qc(np.zeros(n_layers), n_wires)
-    qc = qml.from_qiskit(qc)
-    def circuit(x):
-        qml.from_qiskit(qc)
-        for i in range(0,3):
-            qml.PauliZ(i)
-        #THIS LINE RETURN 1 EVERY ITER
-        return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1) @ qml.PauliZ(2) @ qml.PauliZ(3))
-        #THIS LINE IS THROWING ERROR
-        #return qml.expval(qml.PauliZ(0)), qml.expval(qml.PauliZ(1)), qml.expval(qml.PauliZ(2)), qml.expval(qml.PauliZ(3))
-
-    # all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
-    # def circuit(params):
-    #     qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
-    #     return qml.expval(all_pauliz_tensor_prod)
-
-    opt = qml.GradientDescentOptimizer(stepsize=stepsize)    
-    cost = qml.QNode(circuit, device)
-
-    flat_shape = n_layers * n_wires * 3
-    params = qml.init.strong_ent_layers_normal(
-        n_wires=n_wires, n_layers=n_layers
-    )
-
-    F = []
-    for k in range(steps):
-        params, energy = opt.step_and_cost(cost, params)
-        F.append(energy)
-        print("energy at step " + str(k) +": " + str(energy)) 
-
-    return F
-
-def SPSA(steps=100, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, device = qml.device("default.qubit", wires=4)):
+def SPSA(steps=100, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, device = qml.device("default.qubit", wires = 4, shots = 8000)):
     #USE noisyopt's minimizeSPSA PACKAGE TO CALCULATE ENERGIES
+
     all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
     def circuit(params):
         qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
         return qml.expval(all_pauliz_tensor_prod)
 
-    qnode_spsa = qml.QNode(circuit, device)
-
-    def cost_spsa(params):
-        return qnode_spsa(params.reshape(n_layers, n_wires, 3))
+    # def my_ansatz(p,w0,w1):
+    #     qml.CNOT(wires=[w1,w0])
+    #     qml.RY(p,wires=w1)
+    #     qml.RZ(np.pi,wires=w1)
+    #     qml.CNOT(wires=[w0,w1])
+    #     qml.RZ(-np.pi,wires=w1)
+    #     qml.RY(-p,wires=w1)
+    #     qml.CNOT(wires=[w1,w0])
+        
+    # def my_circuit(params):
+    #     qml.PauliX(wires=1)
+    #     qml.PauliX(wires=2)
+    #     my_ansatz(params[0],0,1)
+    #     my_ansatz(params[1],2,3)
+    #     my_ansatz(np.pi/2,1,2)
+    #     my_ansatz(params[2],0,1)
+    #     my_ansatz(params[3],2,3)
+    #     my_ansatz(np.pi/2,1,2)
+    #     my_ansatz(params[4],0,1)
+    #     my_ansatz(params[5],2,3)
+        
+    # @qml.qnode(device)
+    # def circuit(param, n=3, measurenum=0):
+    #     '''
+    #     n: number of qubits:
+    #     measurestr: measurement basis 0=ZZZZ 1=XXXX 2=YYYY
+    #     '''
+    #     # measurement circuit
+    #     my_circuit(param)
+        
+    #     measurestr=''
+    #     if measurenum==0: 
+    #         measurestr='ZZZZ'
+    #     elif measurenum==1: 
+    #         measurestr='XXXX'
+    #     elif measurenum==2: 
+    #         measurestr='YYYY'
+            
+        
+    #     for qb in range(n):
+    #         if (measurestr[qb] == 'X'):  # Hadamard transform between X and Z
+    #             qml.Hadamard(wires=qb)
+    #         if (measurestr[qb] == 'Y'):  # transform
+    #             qml.S(wires=qb)
+    #             qml.Hadamard(wires=qb)
+         
+    #     return qml.probs(wires=[0,1,2,3]) 
+        #return [qml.expval(qml.PauliZ(i)) for i in range(n_wires)]
 
     flat_shape = n_layers * n_wires * 3
     init_params = qml.init.strong_ent_layers_normal(
         n_wires=n_wires, n_layers=n_layers
     )
     init_params_spsa = init_params.reshape(flat_shape)
+    #init_params_spsa = np.zeros([6,4,3])
 
-    cost_store_spsa = [cost_spsa(init_params_spsa)]
+    qnode = qml.QNode(circuit, device)
+    #print(qnode.draw())
+    #@qml.qnode(device)
+
+    def cost_spsa(params):
+        params = params.reshape(n_layers, n_wires, 3)
+        return qnode(params)
+
+    # Evaluate the initial cost
+    cost_store_spsa = [qnode(init_params_spsa)]
+    print(init_params_spsa)
     device_execs_spsa = [0]
-
 
     F = []
     def callback_fn(xk):
@@ -117,11 +137,8 @@ def SPSA(steps=100, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, devi
         F.append(cost_val)
         cost_store_spsa.append(cost_val)
 
-    # Evaluate the initial cost
-    cost_store_spsa = [cost_spsa(init_params_spsa)]
-
     res = minimizeSPSA(
-        cost_spsa,
+        qnode,
         x0=init_params_spsa.copy(),
         niter=200,
         paired=False,
@@ -138,6 +155,134 @@ def SPSA(steps=100, n_wires=4, n_layers=6, c=0.3, a=1.5, exact_E = -0.1026, devi
     # print(res.status)
     print("Description of the cause of the termination.")
     print(res.message)
+    return F
+
+def GD(steps=10, n_wires=4, n_layers=6, stepsize=0.3, exact_E = -0.1026, device = qml.device("default.qubit", wires = 4, shots = 8000)):
+    #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
+
+    # qc = get_qk_qc(np.zeros(n_layers), n_wires)
+    # qc = qml.from_qiskit(qc)
+    # def circuit(x):
+    #     qml.from_qiskit(qc)
+    #     return qml.probs(wires=[0,1,2,3])
+
+    
+    # all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
+    # def circuit(params):
+    #     qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
+    #     return qml.expval(all_pauliz_tensor_prod)   
+
+    def my_ansatz(p,w0,w1):
+        qml.CNOT(wires=[w1,w0])
+        qml.RY(p,wires=w1)
+        qml.RZ(np.pi,wires=w1)
+        qml.CNOT(wires=[w0,w1])
+        qml.RZ(-np.pi,wires=w1)
+        qml.RY(-p,wires=w1)
+        qml.CNOT(wires=[w1,w0])
+        
+    def my_circuit(params):
+        qml.PauliX(wires=1)
+        qml.PauliX(wires=2)
+        my_ansatz(params[0],0,1)
+        my_ansatz(params[1],2,3)
+        my_ansatz(np.pi/2,1,2)
+        my_ansatz(params[2],0,1)
+        my_ansatz(params[3],2,3)
+        my_ansatz(np.pi/2,1,2)
+        my_ansatz(params[4],0,1)
+        my_ansatz(params[5],2,3)
+        
+    #@qml.qnode(device)
+    def circuit(param, n=3, measurenum=0):
+        '''
+        n: number of qubits:
+        measurestr: measurement basis 0=ZZZZ 1=XXXX 2=YYYY
+        '''
+        # measurement circuit
+        my_circuit(param)
+        
+        
+        measurestr=''
+        if measurenum==0: 
+            measurestr='ZZZZ'
+        elif measurenum==1: 
+            measurestr='XXXX'
+        elif measurenum==2: 
+            measurestr='YYYY'
+            
+        
+        for qb in range(n):
+            if (measurestr[qb] == 'X'):  # Hadamard transform between X and Z
+                qml.Hadamard(wires=qb)
+            if (measurestr[qb] == 'Y'):  # transform
+                qml.S(wires=qb)
+                qml.Hadamard(wires=qb)
+         
+        return qml.probs(wires=[0,1,2,3]) 
+        #return [qml.expval(qml.PauliZ(i)) for i in range(n_wires)]
+
+    opt = qml.GradientDescentOptimizer(stepsize=stepsize)    
+    cost = qml.QNode(circuit, device)
+
+    params = qml.init.strong_ent_layers_normal(
+        n_wires=n_wires, n_layers=n_layers
+    )
+    #params = np.zeros(n_layers)
+
+    F = []
+    for k in range(steps):
+        params, energy = opt.step_and_cost(cost, params)
+        F.append(energy)
+        print("energy at step " + str(k) +": " + str(energy)) 
+
+    return F    
+
+def QND(steps=200, n_wires=4, n_layers=6, stepsize=0.1, exact_E = -0.1026, device = qml.device("default.qubit", wires=4)):
+    #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
+    all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
+    def circuit(params):
+        qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
+        return qml.expval(all_pauliz_tensor_prod)
+
+    opt = qml.QNGOptimizer(stepsize=stepsize, diag_approx=False)   
+    cost = qml.QNode(circuit, device)
+
+    params = qml.init.strong_ent_layers_normal(
+        n_wires=n_wires, n_layers=n_layers
+    )
+
+    qngd_param_history = [params]
+    qngd_cost_history = []
+    conv_tol = 1e-06
+
+    F = []
+    for n in range(steps):
+        # Take step
+        params, prev_energy = opt.step_and_cost(cost, params)
+        qngd_param_history.append(params)
+        qngd_cost_history.append(prev_energy)
+        F.append(prev_energy)
+
+        # Compute energy
+        energy = cost(params)
+
+        # Calculate difference between new and old energies
+        conv = np.abs(energy - prev_energy)
+
+        if n % 20 == 0:
+            print(
+                "Iteration = {:},  Energy = {:.8f} Ha,  Convergence parameter = {"
+                ":.8f} Ha".format(n, energy, conv)
+            )
+
+        if conv <= conv_tol:
+            break
+
+    print()
+    print("Final value of the energy = {:.8f} Ha".format(energy))
+    print("Number of iterations = ", n)
+
     return F
 
 #MAKE GRIDESEARCH FUNCTION
@@ -207,13 +352,24 @@ def plot_result(F, exact_E):
 if __name__ == '__main__':
     #hyperpara_opt_spsa()
     #hyperpara_opt_gd()
-    time_start_SPSA = time.time()
-    res1 = SPSA()
-    time_stop_SPSA = time.time()
-    plot_result(res1, -1.136189454088)   
-    time_start_GD = time.time()
-    res2 = GD()
-    time_stop_GD = time.time()
-    plot_result(res2, -1.136189454088)
-    print("SPSA time: " + str(time_stop_SPSA - time_start_SPSA))
-    print("GD time: " + str(time_stop_GD - time_start_GD))
+
+    # time_start_SPSA = time.time()
+    # res1 = SPSA()
+    # time_stop_SPSA = time.time()
+    # plot_result(res1, -1.136189454088)  
+
+    # time_start_GD = time.time()
+    # res2 = GD()
+    # time_stop_GD = time.time()
+    # print(res2)
+    # plot_result(res2, -1.136189454088)
+
+    time_stop_QND = time.time()
+    res3 = QND()
+    time_start_QND = time.time()
+    plot_result(res3, -1.136189454088)
+
+
+    # print("SPSA time: " + str(time_stop_SPSA - time_start_SPSA))
+    # print("GD time: " + str(time_stop_GD - time_start_GD))
+    print("QND time: " + str(time_stop_QND - time_start_QND))
