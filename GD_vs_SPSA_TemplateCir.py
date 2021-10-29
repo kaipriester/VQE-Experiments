@@ -4,7 +4,7 @@ import numpy as np
 import matplotlib.pyplot as plt 
 import time
 
-def GD(steps=200, n_wires=4, n_layers=6, stepsize=0.3, device = qml.device("default.qubit", wires=4)):
+def GD(steps=2000, n_wires=4, n_layers=6, step_size=0.3, device = qml.device("default.qubit", wires=4)):
     #USE pennylane's GradientDescentOptimizer PACKAGE TO CALCULATE ENERGIES
 
     all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
@@ -12,7 +12,7 @@ def GD(steps=200, n_wires=4, n_layers=6, stepsize=0.3, device = qml.device("defa
         qml.templates.StronglyEntanglingLayers(params, wires=list(range(n_wires)))
         return qml.expval(all_pauliz_tensor_prod)
 
-    opt = qml.GradientDescentOptimizer(stepsize=stepsize)    
+    opt = qml.GradientDescentOptimizer(stepsize=step_size)    
     cost = qml.QNode(circuit, device)
 
     params = qml.init.strong_ent_layers_normal(
@@ -26,7 +26,7 @@ def GD(steps=200, n_wires=4, n_layers=6, stepsize=0.3, device = qml.device("defa
 
     return F
 
-def SPSA(steps=200, n_wires=4, n_layers=6, c=0.3, a=1.5, device = qml.device("default.qubit", wires=4)):
+def SPSA(steps=2000, n_wires=4, n_layers=6, c=0.3, a=1.5, device = qml.device("default.qubit", wires=4)):
     #USE noisyopt's minimizeSPSA PACKAGE TO CALCULATE ENERGIES
     all_pauliz_tensor_prod = qml.operation.Tensor(*[qml.PauliZ(i) for i in range(n_wires)])
     def circuit(params):
@@ -83,22 +83,50 @@ def plot_result(F, exact_E):
 
 if __name__ == '__main__':
 
-    #write input prompt
+    #input prompt
+    print("Input optimzation parameters (press enter) OR run default parameters (input \"default\"): ")
+    input1 = input()
     #pick steps, n_wire, & n_layers OR default params
     #hyper for spsa; c & a
     #hyper for gd; steps_size
-    
-    time_start_SPSA = time.time()
-    print("Running SPSA...")
-    res1 = SPSA()
-    time_stop_SPSA = time.time()
-    plot_result(res1, -1.136189454088)  
+    if (input1 == "default"):
+        time_start_SPSA = time.time()
+        print("Running SPSA...")
+        res1 = SPSA()
+        time_stop_SPSA = time.time()
+        plot_result(res1, -1.136189454088)  
 
-    time_start_GD = time.time()
-    print("Running GD...")
-    res2 = GD()
-    time_stop_GD = time.time()
-    plot_result(res2, -1.136189454088)
+        time_start_GD = time.time()
+        print("Running GD...")
+        res2 = GD()
+        time_stop_GD = time.time()
+        plot_result(res2, -1.136189454088)
+
+    else:
+        print("Number of steps (steps): ")
+        steps = int(input())
+        print("Number of wires (n_wires): ")
+        n_wires = int(input())
+        print("Number of layers (n_layers): ")
+        n_layers = int(input())
+        print("c value for SPSA (c): ")
+        c = float(input())
+        print("a value for SPSA (a): ")
+        a = float(input())
+        print("Step size for GD (step_size): ")
+        step_size = float(input())
+
+        time_start_SPSA = time.time()
+        print("Running SPSA...")
+        res1 = SPSA(steps, n_wires, n_layers, c, a, device = qml.device("default.qubit", wires=n_wires))
+        time_stop_SPSA = time.time()
+        plot_result(res1, -1.136189454088)  
+
+        time_start_GD = time.time()
+        print("Running GD...")
+        res2 = GD(steps, n_wires, n_layers, step_size, device = qml.device("default.qubit", wires=n_wires))
+        time_stop_GD = time.time()
+        plot_result(res2, -1.136189454088)
 
 
     print("SPSA time: " + str(time_stop_SPSA - time_start_SPSA))
