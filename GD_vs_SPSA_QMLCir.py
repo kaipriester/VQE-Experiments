@@ -17,6 +17,8 @@ def GD(steps, init_params, step_size, type):
         opt = qml.MomentumOptimizer(stepsize=step_size)  
     elif(type == "NMO"):
         opt = qml.NesterovMomentumOptimizer(stepsize=step_size)      
+    elif(type == "RMSProp"):
+        opt = qml.RMSPropOptimizer(stepsize=step_size)   
 
     cost = sim_run
 
@@ -91,8 +93,9 @@ if __name__ == '__main__':
         print("     3. Gradient-descent optimizer with adaptive learning rate, first and second moment (Adam)")
         print("     4. Gradient-descent optimizer with past-gradient-dependent learning rate in each dimension. (Ada)")
         print("     5. Gradient-descent optimizer with momentum. (MO)")
-        print("     6. Gradient-descent optimizer with Nesterov momentum. (NOM)")
-        print("     7. Optimizer with adaptive learning rate, via calculation of the diagonal or block-diagonal approximation to the Fubini-Study metric tensor. (QNG)")
+        print("     6. Gradient-descent optimizer with Nesterov momentum. (NMO)")
+        print("     7. Root mean squared propagation optimizer. (RMSProp)")
+        # print("     7. Optimizer with adaptive learning rate, via calculation of the diagonal or block-diagonal approximation to the Fubini-Study metric tensor. (QNG)")
         print("Input menu ID(s) of optimizers to run (examples: 1,3 or 2): ", end='')
         menu_input = input()   
         menu_input = list(menu_input.split(","))
@@ -100,7 +103,7 @@ if __name__ == '__main__':
         for i in menu_input:
             if(i == '1'):
                 valid_input = True
-                print("GD hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("GD hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -126,7 +129,7 @@ if __name__ == '__main__':
 
             elif(i == '2'):
                 valid_input = True
-                print("SPSA hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("SPSA hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -156,7 +159,7 @@ if __name__ == '__main__':
 
             elif(i == '3'):
                 valid_input = True
-                print("Adam hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("Adam hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -182,7 +185,7 @@ if __name__ == '__main__':
 
             elif(i == '4'):
                 valid_input = True
-                print("Ada hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("Ada hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -208,7 +211,7 @@ if __name__ == '__main__':
 
             elif(i == '5'):
                 valid_input = True
-                print("MO hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("MO hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -234,7 +237,7 @@ if __name__ == '__main__':
 
             elif(i == '6'):
                 valid_input = True
-                print("NMO hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("NMO hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -256,11 +259,12 @@ if __name__ == '__main__':
                 print("NMO plot saved to results directory")
                 print("NMO time elapsed: " + str(time_stop - time_start))
                 print()
-                plot_result(result, "NMO")                                  
+                plot_result(result, "NMO")   
 
+            
             elif(i == '7'):
                 valid_input = True
-                print("QNG hyperparameters (input d to use defaults OR any key to continue modifying): ", end='')
+                print("RMSProp hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
                 param_spec = input()
                 if(param_spec != "d"):
                     print("Number of iterations (example: 300): ", end='')
@@ -276,13 +280,39 @@ if __name__ == '__main__':
                     step_size = 0.3  
 
                 time_start = time.time()
-                print("Running QNG---------------------------------------------------------------------------------------------")
-                result = QNG(niter, init_params, step_size)
+                print("Running RMSProp---------------------------------------------------------------------------------------------")
+                result = GD(niter, init_params, step_size, "RMSProp")
                 time_stop = time.time()
-                print("QNG plot saved to results directory")
-                print("QNG time elapsed: " + str(time_stop - time_start))
+                print("RMSProp plot saved to results directory")
+                print("RMSProp time elapsed: " + str(time_stop - time_start))
                 print()
-                plot_result(result, "QNG")
+                plot_result(result, "RMSProp")                               
+
+            # elif(i == '7'):
+            #     valid_input = True
+            #     print("QNG hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
+            #     param_spec = input()
+            #     if(param_spec != "d"):
+            #         print("Number of iterations (example: 300): ", end='')
+            #         niter = int(input())
+            #         print("Initial parameters (example: 1.57079633,1.57079633,1.57079633,1.57079633,1.57079633,1.57079633): ", end='')
+            #         init_params = input()
+            #         init_params = [float(item) for item in init_params.split(',')]
+            #         print("Stepsize(example 0.2): ", end='')
+            #         step_size = float(input())
+            #     else: 
+            #         niter = 100
+            #         init_params = np.pi/2*np.ones(6)
+            #         step_size = 0.3  
+
+            #     time_start = time.time()
+            #     print("Running QNG---------------------------------------------------------------------------------------------")
+            #     result = QNG(niter, init_params, step_size)
+            #     time_stop = time.time()
+            #     print("QNG plot saved to results directory")
+            #     print("QNG time elapsed: " + str(time_stop - time_start))
+            #     print()
+            #     plot_result(result, "QNG")
     
     
     
