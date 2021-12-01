@@ -1,3 +1,7 @@
+""" Kai Priester
+    Fall 2021
+    //working CLI to run different opts on circuit defined in pennyl3 """
+    
 import pennylane as qml
 from noisyopt import minimizeSPSA
 import numpy as np
@@ -52,39 +56,10 @@ def SPSA(steps, init_params, c, a):
         a=a,
         callback=callback_fn,)
 
-    return F
-
-
-#TRY ROTOSOLVE AND ROTOSELECT
-def Roto(steps, init_params):
-    cost = sim_run
-    opt = qml.optimize.RotoselectOptimizer()
-    param = init_params.copy()
-    x = [0.3, 0.7]
-    generators = [qml.RX, qml.RY]
-
-    cost_rotosel = []
-    for _ in range(steps):
-        cost_rotosel.append(cost(x, generators))
-        x, generators = opt.step(cost, x, generators)
-
-    return cost_rotosel    
-
-# def QNG(steps, init_params, step_size):
-#     opt = qml.QNGOptimizer(stepsize=step_size)    
-#     cost = sim_run
-
-#     params = init_params
-
-#     F = []
-#     for k in range(steps):
-#         params, energy = opt.step(cost, params)
-#         F.append(energy)
-
-#     return F      
+    return F   
 
 #new -0.10911
-def plot_result(F, opt_name, exact_E=-0.1):
+def plot_result(F, opt_name, exact_E=-0.10911):
     Nitr=len(F)
     fig = plt.figure()
     F = np.array(F)
@@ -112,8 +87,6 @@ if __name__ == '__main__':
         print("     5. Gradient-descent optimizer with momentum. (MO)")
         print("     6. Gradient-descent optimizer with Nesterov momentum. (NMO)")
         print("     7. Root mean squared propagation optimizer. (RMSProp)")
-        # print("     8. Roto gradient-free optimizer. (RotoSol)")
-        # print("     7. Optimizer with adaptive learning rate, via calculation of the diagonal or block-diagonal approximation to the Fubini-Study metric tensor. (QNG)")
         print("Input menu ID(s) of optimizers to run (examples: 1,3 or 2): ", end='')
         menu_input = input()   
         menu_input = list(menu_input.split(","))
@@ -306,55 +279,7 @@ if __name__ == '__main__':
                 print()
                 plot_result(result, "RMSProp")    
                             
-            # elif(i == '8'):
-            #     valid_input = True
-            #     print("Roto hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
-            #     param_spec = input()
-            #     if(param_spec != "d"):
-            #         print("Number of iterations (example: 300): ", end='')
-            #         niter = int(input())
-            #         print("Initial parameters (example: 1.57079633,1.57079633,1.57079633,1.57079633,1.57079633,1.57079633): ", end='')
-            #         init_params = input()
-            #         init_params = [float(item) for item in init_params.split(',')]
-            #     else: 
-            #         niter = 100
-            #         init_params = np.pi/2*np.ones(6)
-            #         step_size = 0.3  
 
-            #     time_start = time.time()
-            #     print("Running Roto---------------------------------------------------------------------------------------------")
-            #     result = Roto(niter, init_params)
-            #     time_stop = time.time()
-            #     print("RotoSol plot saved to results directory")
-            #     print("RotoSol time elapsed: " + str(time_stop - time_start))
-            #     print()
-            #     plot_result(result, "Roto")                                          
-
-            # elif(i == '7'):
-            #     valid_input = True
-            #     print("QNG hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
-            #     param_spec = input()
-            #     if(param_spec != "d"):
-            #         print("Number of iterations (example: 300): ", end='')
-            #         niter = int(input())
-            #         print("Initial parameters (example: 1.57079633,1.57079633,1.57079633,1.57079633,1.57079633,1.57079633): ", end='')
-            #         init_params = input()
-            #         init_params = [float(item) for item in init_params.split(',')]
-            #         print("Stepsize(example 0.2): ", end='')
-            #         step_size = float(input())
-            #     else: 
-            #         niter = 100
-            #         init_params = np.pi/2*np.ones(6)
-            #         step_size = 0.3  
-
-            #     time_start = time.time()
-            #     print("Running QNG---------------------------------------------------------------------------------------------")
-            #     result = QNG(niter, init_params, step_size)
-            #     time_stop = time.time()
-            #     print("QNG plot saved to results directory")
-            #     print("QNG time elapsed: " + str(time_stop - time_start))
-            #     print()
-            #     plot_result(result, "QNG")
     
     
     

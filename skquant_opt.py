@@ -1,3 +1,7 @@
+""" Kai Priester
+    Fall 2021
+    //attempt to use skquant optimizers
+    """
 from skquant.opt import minimize
 import matplotlib.pyplot as plt
 import numpy as np

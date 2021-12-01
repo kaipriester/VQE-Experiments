@@ -5,6 +5,12 @@ Created on Sun Apr  4 21:03:13 2021
 Ref. https://github.com/TianyiPeng/Cluster-Simulation-Scheme/tree/master/VQE%20experiments
 
 """
+
+""" Kai Priester
+    Fall 2021
+    //attempt to modify SPSA function
+    """
+
 # import qiskit and other useful python modules
 
 #plot is directly shown inline

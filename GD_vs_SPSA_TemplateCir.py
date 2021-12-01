@@ -1,3 +1,7 @@
+""" Kai Priester
+    Fall 2021
+    //working CLI to run GD and SPSA on simple pennylane circuit """
+
 import pennylane as qml
 from noisyopt import minimizeSPSA
 import numpy as np

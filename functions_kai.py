@@ -1,3 +1,8 @@
+""" Kai Priester
+    Fall 2021
+    //attempt to modify SPSA function and add GD and QNG
+    """
+
 from sklearn.model_selection import GridSearchCV
 import pennylane as qml
 from noisyopt import minimizeSPSA
