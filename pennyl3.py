@@ -188,5 +188,3 @@ def sim_run(params,n=4):
 if __name__ == '__main__':
     params=np.pi/2*np.ones(6) # need update
     sim_run(params,n=4)
-
-    

@@ -3,7 +3,7 @@
     //working CLI to run different opts on circuit defined in pennyl3 """
     
 import pennylane as qml
-from noisyopt import minimizeSPSA
+from noisyopt import minimizeSPSA, minimizeCompass
 import numpy as np
 import matplotlib.pyplot as plt 
 import time
@@ -50,13 +50,39 @@ def SPSA(steps, init_params, c, a):
     res = minimizeSPSA(
         sim_run,
         x0=init_params_spsa.copy(),
-        niter=steps,
         paired=False,
         c=c,
         a=a,
+        disp=True,
         callback=callback_fn,)
 
+    print(res)
+
     return F   
+
+def MinCompass(init_params):
+    init_params_spsa = init_params
+
+    F = []
+    def callback_fn(xk):
+        cost_val = sim_run(xk)
+        F.append(cost_val)
+        cost_store_spsa.append(cost_val)
+
+    cost_store_spsa = [sim_run(init_params_spsa)]
+
+    res = minimizeCompass(
+        sim_run,
+        x0=init_params_spsa.copy(),
+        paired=False,
+        errorcontrol=False,
+        funcNinit=300,
+        disp=True,
+        callback=callback_fn,)
+
+    print(res)
+
+    return F     
 
 #new -0.10911
 def plot_result(F, opt_name, exact_E=-0.10911):
@@ -83,10 +109,11 @@ if __name__ == '__main__':
         print("     1. Basic gradient-descent optimizer (GD)")
         print("     2. Simultaneous Perturbation Stochastic Approximation (SPSA)")
         print("     3. Gradient-descent optimizer with adaptive learning rate, first and second moment (Adam)")
-        print("     4. Gradient-descent optimizer with past-gradient-dependent learning rate in each dimension. (Ada)")
-        print("     5. Gradient-descent optimizer with momentum. (MO)")
-        print("     6. Gradient-descent optimizer with Nesterov momentum. (NMO)")
-        print("     7. Root mean squared propagation optimizer. (RMSProp)")
+        print("     4. Gradient-descent optimizer with past-gradient-dependent learning rate in each dimension (Ada)")
+        print("     5. Gradient-descent optimizer with momentum (MO)")
+        print("     6. Gradient-descent optimizer with Nesterov momentum (NMO)")
+        print("     7. Root mean squared propagation optimizer (RMSProp)")
+        print("     8. Minimization of an objective function by a pattern search (MinCompass)")
         print("Input menu ID(s) of optimizers to run (examples: 1,3 or 2): ", end='')
         menu_input = input()   
         menu_input = list(menu_input.split(","))
@@ -279,7 +306,27 @@ if __name__ == '__main__':
                 print()
                 plot_result(result, "RMSProp")    
                             
+            elif(i == '8'):
+                valid_input = True
+                print("MinCompass hyperparameters (input d to use defaults OR any other key to continue modifying): ", end='')
+                param_spec = input()
+                if(param_spec != "d"):
+                    print("The algorithm terminates when the current iterate is locally optimally at the target pattern size deltatol or when the function value differs by less than the tolerance feps along all directions.")
+                    print("Initial parameters (example: 1.57079633,1.57079633,1.57079633,1.57079633,1.57079633,1.57079633): ", end='')
+                    init_params = input()
+                    init_params = [float(item) for item in init_params.split(',')]
 
+                else: 
+                    init_params = np.pi/2*np.ones(6)
+
+                time_start = time.time()
+                print("Running MinCompass---------------------------------------------------------------------------------------------")
+                result = MinCompass(init_params)
+                time_stop = time.time()
+                print("MinCompass plot saved to results directory")
+                print("MinCompass time elapsed: " + str(time_stop - time_start))
+                print()
+                plot_result(result, "MinCompass")
     
     
     

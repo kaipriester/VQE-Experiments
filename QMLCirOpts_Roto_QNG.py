@@ -24,13 +24,15 @@ def cost_function(rot_param, layer_par, crot_param):
     for i, par in enumerate(crot_param):
         qml.CRY(par, wires=[i, (i+1)%3])
 
-    return qml.expval(qml.PauliZ(0) @ qml.PauliZ(1) @ qml.PauliZ(2))
+    result = qml.expval(qml.PauliZ(0) @ qml.PauliZ(1) @ qml.PauliZ(2))
+    print(result)
+    return result
 
 #TRY ROTOSOLVE AND ROTOSELECT
 def RotoSolve(num_steps, init_params):
     opt = qml.optimize.RotosolveOptimizer()
     param = init_params.copy()
-    cost_rotosolve  = []
+    cost_roto  = []
 
     for step in range(num_steps):
         param, cost, sub_cost = opt.step_and_cost(
@@ -41,34 +43,53 @@ def RotoSolve(num_steps, init_params):
         )
         print(f"Cost before step: {cost}")
         print(f"Minimization substeps: {np.round(sub_cost, 6)}")
-        cost_rotosolve.extend(sub_cost)
+        cost_roto.append(cost)
 
-    return cost_rotosolve    
+    return cost_roto    
 
-def ShotAdaptive(num_step):
-    coeffs = [2, 4, -1, 5, 2]
-    obs = [
-        qml.PauliX(1),
-        qml.PauliZ(1),
-        qml.PauliX(0) @ qml.PauliX(1),
-        qml.PauliY(0) @ qml.PauliY(1),
-        qml.PauliZ(0) @ qml.PauliZ(1)
-    ]
-    H = qml.Hamiltonian(coeffs, obs)
-    dev = qml.device("default.qubit", wires=2, shots=100)
-    cost = qml.ExpvalCost(qml.templates.StronglyEntanglingLayers, H, dev)  
+def RotoSelect(num_steps, init_params):
+    opt = qml.optimize.RotoselectOptimizer()
+    param = init_params.copy()
+    cost_roto  = []
 
-    shape = qml.templates.StronglyEntanglingLayers.shape(n_layers=2, n_wires=2)
-    params = np.random.random(shape)
-    opt = qml.ShotAdaptiveOptimizer(min_shots=10)
+    for step in range(num_steps):
+        param, cost, sub_cost = opt.step_and_cost(
+            cost_function,
+            *param,
+            num_freqs=num_freqs,
+            full_output=True,
+        )
+        print(f"Cost before step: {cost}")
+        print(f"Minimization substeps: {np.round(sub_cost, 6)}")
+        cost_roto.append(cost)
 
-    energy = []
-    for i in range(num_step):
-       params = opt.step(cost, params)
-       energy = cost (params)
-       print(f"Step {i}: cost = {energy:.2f}, shots_used = {opt.total_shots_used}")
+    return cost_roto       
 
-    return energy   
+#LOW PERFORMANCE
+# def ShotAdaptive(num_step):
+#     coeffs = [2, 4, -1, 5, 2]
+#     obs = [
+#         qml.PauliX(1),
+#         qml.PauliZ(1),
+#         qml.PauliX(0) @ qml.PauliX(1),
+#         qml.PauliY(0) @ qml.PauliY(1),
+#         qml.PauliZ(0) @ qml.PauliZ(1)
+#     ]
+#     H = qml.Hamiltonian(coeffs, obs)
+#     dev = qml.device("default.qubit", wires=2, shots=100)
+#     cost = qml.ExpvalCost(qml.templates.StronglyEntanglingLayers, H, dev)  
+
+#     shape = qml.templates.StronglyEntanglingLayers.shape(n_layers=2, n_wires=2)
+#     params = np.random.random(shape)
+#     opt = qml.ShotAdaptiveOptimizer(min_shots=10)
+
+#     energy = []
+#     for i in range(num_step):
+#        params = opt.step(cost, params)
+#        energy.append(cost (params))
+#        print(f"Step {i}: cost = {cost (params):.2f}, shots_used = {opt.total_shots_used}")
+
+#     return energy   
 
 def plot_result(F, exact_E=-0.1):
     Nitr=len(F)
@@ -83,6 +104,11 @@ def plot_result(F, exact_E=-0.1):
     plt.show()   
 
 if __name__ == '__main__':
-    RotoSolve(50, init_params=init_param)
-    energy = ShotAdaptive(50)
+    energy = RotoSelect(50, init_params=init_param)
+    print(energy)
     plot_result(energy)
+
+    energy = RotoSolve(50, init_params=init_param)
+    print(energy)
+    plot_result(energy)
+
